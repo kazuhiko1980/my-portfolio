@@ -8,6 +8,8 @@ import {
   AlertCircle,
   ArrowLeft,
   Edit3,
+  Eye,
+  EyeOff,
   ImageIcon,
   Loader2,
   LogOut,
@@ -113,7 +115,7 @@ function AuthenticatedAdmin({ page }: { page: AdminPage }) {
             </p>
           </div>
           <Input
-            label="Email"
+            label="メールアドレス"
             type="email"
             value={email}
             onChange={setEmail}
@@ -121,7 +123,7 @@ function AuthenticatedAdmin({ page }: { page: AdminPage }) {
             autoComplete="email"
           />
           <Input
-            label="Password"
+            label="パスワード"
             type="password"
             value={password}
             onChange={setPassword}
@@ -943,21 +945,42 @@ function Input({
   placeholder?: string;
   autoComplete?: string;
 }) {
+  const [isPasswordVisible, setIsPasswordVisible] = useState(false);
+  const isPassword = type === "password";
+
   return (
     <label className="block space-y-2">
       <span className="flex items-center gap-2 text-sm font-medium text-ink">
         {label}
         {required ? <RequiredLabel /> : null}
       </span>
-      <input
-        type={type}
-        value={value}
-        required={required}
-        placeholder={placeholder}
-        autoComplete={autoComplete}
-        onChange={(event) => onChange(event.currentTarget.value)}
-        className="min-h-12 w-full rounded-md border border-line bg-white px-3 text-base outline-none focus:border-2 focus:border-blue-500"
-      />
+      <span className="relative block">
+        <input
+          type={isPassword && isPasswordVisible ? "text" : type}
+          value={value}
+          required={required}
+          placeholder={placeholder}
+          autoComplete={autoComplete}
+          onChange={(event) => onChange(event.currentTarget.value)}
+          className={`min-h-12 w-full rounded-md border border-line bg-white px-3 text-base outline-none focus:border-2 focus:border-blue-500 ${
+            isPassword ? "pr-12" : ""
+          }`}
+        />
+        {isPassword ? (
+          <button
+            type="button"
+            onClick={() => setIsPasswordVisible((visible) => !visible)}
+            className="absolute inset-y-0 right-0 inline-flex w-12 items-center justify-center text-muted"
+            aria-label={isPasswordVisible ? "パスワードを隠す" : "パスワードを表示"}
+          >
+            {isPasswordVisible ? (
+              <EyeOff className="h-5 w-5" aria-hidden="true" />
+            ) : (
+              <Eye className="h-5 w-5" aria-hidden="true" />
+            )}
+          </button>
+        ) : null}
+      </span>
     </label>
   );
 }
