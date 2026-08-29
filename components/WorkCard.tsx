@@ -3,22 +3,29 @@
 import Image from "next/image";
 import Link from "next/link";
 import { ImageIcon, Play } from "lucide-react";
-import type { WorkWithCategory } from "@/lib/types";
+import type { WorkType, WorkWithCategory } from "@/lib/types";
 import { getYouTubeThumbnailUrl } from "@/lib/youtube";
 
 type WorkCardProps = {
   work: WorkWithCategory;
   activeCategoryId: string | null;
+  activeType: WorkType;
 };
 
-export function WorkCard({ work, activeCategoryId }: WorkCardProps) {
+export function WorkCard({
+  work,
+  activeCategoryId,
+  activeType,
+}: WorkCardProps) {
   const thumbnail =
     work.type === "image"
       ? work.image_url
       : getYouTubeThumbnailUrl(work.youtube_url) ?? work.image_url;
-  const href = activeCategoryId
-    ? `/works/${work.id}?category=${activeCategoryId}`
-    : `/works/${work.id}`;
+  const searchParams = new URLSearchParams({ type: activeType });
+  if (activeCategoryId) {
+    searchParams.set("category", activeCategoryId);
+  }
+  const href = `/works/${work.id}?${searchParams.toString()}`;
 
   return (
     <Link
@@ -26,8 +33,12 @@ export function WorkCard({ work, activeCategoryId }: WorkCardProps) {
       className="group block focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
       aria-label={`${work.title} の詳細を開く`}
     >
-      <article className="overflow-hidden rounded-md bg-white shadow-soft transition duration-200 group-active:scale-[0.98]">
-        <div className="relative aspect-[4/5] bg-[#e9e4da]">
+      <article className="overflow-hidden rounded-[20px] bg-white shadow-soft transition duration-200 group-active:scale-[0.98]">
+        <div
+          className={`relative overflow-hidden bg-[#e9e4da] ${
+            work.type === "video" ? "aspect-video" : "aspect-[3/2]"
+          }`}
+        >
           {thumbnail ? (
             <Image
               src={thumbnail}
@@ -45,14 +56,6 @@ export function WorkCard({ work, activeCategoryId }: WorkCardProps) {
               )}
             </div>
           )}
-          <span className="absolute left-2 top-2 inline-flex min-h-8 items-center gap-1 rounded-full bg-ink/80 px-2.5 text-xs font-medium text-white backdrop-blur">
-            {work.type === "video" ? (
-              <Play className="h-3.5 w-3.5" aria-hidden="true" />
-            ) : (
-              <ImageIcon className="h-3.5 w-3.5" aria-hidden="true" />
-            )}
-            {work.type}
-          </span>
         </div>
         <div className="space-y-1 p-3">
           <h2 className="line-clamp-2 text-sm font-semibold leading-snug text-ink">

@@ -2,17 +2,21 @@
 
 import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import type { User } from "@supabase/supabase-js";
 import {
   AlertCircle,
+  ArrowLeft,
   Edit3,
   ImageIcon,
   Loader2,
   LogOut,
+  Menu,
   Plus,
-  Save,
   Trash2,
+  X,
 } from "lucide-react";
+import Link from "next/link";
 import { createSupabaseBrowserClient, hasSupabaseEnv } from "@/lib/supabase";
 import type { Category, WorkFormInput, WorkType, WorkWithCategory } from "@/lib/types";
 import { getYouTubeVideoId } from "@/lib/youtube";
@@ -27,7 +31,14 @@ const emptyWorkForm: WorkFormInput = {
   display_order: 0,
 };
 
-export function AdminDashboard() {
+export type AdminPage = "register" | "works" | "categories";
+type DeleteTarget = {
+  kind: "work" | "category";
+  id: string;
+  message: string;
+};
+
+export function AdminDashboard({ page = "works" }: { page?: AdminPage }) {
   if (!hasSupabaseEnv()) {
     return (
       <AdminShell>
@@ -39,15 +50,16 @@ export function AdminDashboard() {
     );
   }
 
-  return <AuthenticatedAdmin />;
+  return <AuthenticatedAdmin page={page} />;
 }
 
-function AuthenticatedAdmin() {
+function AuthenticatedAdmin({ page }: { page: AdminPage }) {
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [authError, setAuthError] = useState<string | null>(null);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
 
@@ -129,26 +141,100 @@ function AuthenticatedAdmin() {
     <AdminShell>
       <div className="mb-5 flex items-center justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-semibold text-ink">Admin</h1>
+          <Link
+            href="/admin/works"
+            className="text-3xl font-semibold text-ink"
+            aria-label="管理画面トップへ移動"
+          >
+            Admin
+          </Link>
           <p className="mt-1 text-xs text-muted">{user.email}</p>
         </div>
-        <button
-          type="button"
-          onClick={() => supabase.auth.signOut()}
-          className="inline-flex min-h-11 items-center gap-2 rounded-md border border-line px-3 text-sm font-medium"
-          aria-label="ログアウト"
-        >
-          <LogOut className="h-4 w-4" aria-hidden="true" />
-          Logout
-        </button>
+        <div className="flex items-center gap-2">
+          <Link
+            href="/admin/register"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-white text-ink"
+            aria-label="作品登録ページを開く"
+          >
+            <Plus className="h-5 w-5" aria-hidden="true" />
+          </Link>
+          <button
+            type="button"
+            onClick={() => setIsMenuOpen((isOpen) => !isOpen)}
+            className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-white text-ink"
+            aria-label={isMenuOpen ? "メニューを閉じる" : "メニューを開く"}
+            aria-expanded={isMenuOpen}
+            aria-controls="admin-drawer"
+          >
+            {isMenuOpen ? (
+              <X className="h-5 w-5" aria-hidden="true" />
+            ) : (
+              <Menu className="h-5 w-5" aria-hidden="true" />
+            )}
+          </button>
+        </div>
       </div>
-      <AdminConsole />
+      <div
+        className={`fixed inset-0 z-40 bg-ink/30 transition-opacity duration-300 ${
+          isMenuOpen ? "visible opacity-100" : "invisible opacity-0"
+        }`}
+        aria-hidden={!isMenuOpen}
+        onClick={() => setIsMenuOpen(false)}
+      />
+      <aside
+        id="admin-drawer"
+        className={`fixed inset-y-0 right-0 z-50 flex w-[min(82vw,20rem)] flex-col bg-white shadow-[-12px_0_32px_rgba(18,18,18,0.12)] transition-transform duration-300 ease-out ${
+          isMenuOpen ? "translate-x-0" : "translate-x-full"
+        }`}
+        aria-label="管理メニュー"
+        aria-hidden={!isMenuOpen}
+      >
+        <div className="flex min-h-16 items-center justify-end border-b border-line px-4">
+          <button
+            type="button"
+            onClick={() => setIsMenuOpen(false)}
+            className="inline-flex h-11 w-11 items-center justify-center rounded-full text-ink transition hover:bg-paper focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            aria-label="メニューを閉じる"
+          >
+            <X className="h-5 w-5" aria-hidden="true" />
+          </button>
+        </div>
+        <nav className="flex flex-col gap-1 p-3">
+          <AdminNavLink href="/admin/works" active={page === "works"} label="作品一覧" onSelect={() => setIsMenuOpen(false)} />
+          <AdminNavLink href="/admin/register" active={page === "register"} label="作品を登録" onSelect={() => setIsMenuOpen(false)} />
+          <AdminNavLink href="/admin/categories" active={page === "categories"} label="カテゴリ追加" onSelect={() => setIsMenuOpen(false)} />
+        </nav>
+        <div className="mt-auto border-t border-line p-3">
+          <button
+            type="button"
+            onClick={() => supabase.auth.signOut()}
+            className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md border border-line px-4 text-sm font-medium"
+            aria-label="ログアウト"
+          >
+            <LogOut className="h-4 w-4" aria-hidden="true" />
+            Logout
+          </button>
+        </div>
+      </aside>
+      {page === "register" ? (
+        <Link
+          href="/admin/works"
+          className="mb-5 inline-flex min-h-11 items-center gap-2 rounded-md border border-line px-4 text-sm font-medium text-ink"
+        >
+          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+          戻る
+        </Link>
+      ) : null}
+      <AdminConsole page={page} />
     </AdminShell>
   );
 }
 
-function AdminConsole() {
+function AdminConsole({ page }: { page: AdminPage }) {
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const editId = searchParams.get("edit");
   const [works, setWorks] = useState<WorkWithCategory[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [workForm, setWorkForm] = useState<WorkFormInput>(emptyWorkForm);
@@ -160,6 +246,11 @@ function AdminConsole() {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
+  const [workListType, setWorkListType] = useState<WorkType>("image");
+  const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
+  const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
+
+  const visibleWorks = works.filter((work) => work.type === workListType);
 
   async function refresh() {
     setIsLoading(true);
@@ -195,7 +286,28 @@ function AdminConsole() {
     refresh();
   }, []);
 
+  useEffect(() => {
+    if (page !== "register" || !editId) {
+      return;
+    }
+
+    const work = works.find((item) => item.id === editId);
+    if (work) {
+      setEditingWorkId(work.id);
+      setWorkForm({
+        title: work.title,
+        type: work.type,
+        image_url: work.image_url,
+        youtube_url: work.youtube_url,
+        description: work.description ?? "",
+        category_id: work.category_id,
+        display_order: work.display_order,
+      });
+    }
+  }, [editId, page, works]);
+
   async function uploadImage(file: File) {
+    setSelectedFileName(file.name);
     setError(null);
     const allowedTypes = ["image/jpeg", "image/png", "image/webp", "image/gif"];
     if (!allowedTypes.includes(file.type)) {
@@ -269,20 +381,11 @@ function AdminConsole() {
   }
 
   async function deleteWork(work: WorkWithCategory) {
-    if (!confirm("この作品を削除しますか？")) {
-      return;
-    }
-
-    const { error: deleteError } = await supabase
-      .from("works")
-      .delete()
-      .eq("id", work.id);
-    if (deleteError) {
-      setError(deleteError.message);
-    } else {
-      setStatus("作品を削除しました。");
-      await refresh();
-    }
+    setDeleteTarget({
+      kind: "work",
+      id: work.id,
+      message: "この作品を削除しますか？",
+    });
   }
 
   async function saveCategory(event: React.FormEvent<HTMLFormElement>) {
@@ -321,23 +424,39 @@ function AdminConsole() {
         ? `このカテゴリには${count}作品が登録されています。カテゴリを削除しますか？作品は削除されず未分類になります。`
         : "このカテゴリを削除しますか？";
 
-    if (!confirm(message)) {
+    setDeleteTarget({ kind: "category", id: category.id, message });
+  }
+
+  async function confirmDelete() {
+    if (!deleteTarget) {
       return;
     }
 
+    const table = deleteTarget.kind === "work" ? "works" : "categories";
     const { error: deleteError } = await supabase
-      .from("categories")
+      .from(table)
       .delete()
-      .eq("id", category.id);
+      .eq("id", deleteTarget.id);
+
     if (deleteError) {
       setError(deleteError.message);
     } else {
-      setStatus("カテゴリを削除しました。");
+      setStatus(
+        deleteTarget.kind === "work"
+          ? "作品を削除しました。"
+          : "カテゴリを削除しました。",
+      );
       await refresh();
     }
+    setDeleteTarget(null);
   }
 
   function editWork(work: WorkWithCategory) {
+    if (page === "works") {
+      router.push(`/admin/register?edit=${work.id}`);
+      return;
+    }
+
     setEditingWorkId(work.id);
     setWorkForm({
       title: work.title,
@@ -358,46 +477,86 @@ function AdminConsole() {
   }
 
   if (isLoading) {
-    return <StateBox title="読み込み中" body="管理データを取得しています。" loading />;
+    return page === "works" ? (
+      <AdminWorksSkeleton />
+    ) : (
+      <StateBox title="読み込み中" body="管理データを取得しています。" loading />
+    );
   }
 
   return (
     <div className="space-y-8">
       {error ? <Notice tone="error">{error}</Notice> : null}
       {status ? <Notice tone="success">{status}</Notice> : null}
+      {deleteTarget ? (
+        <ConfirmDialog
+          message={deleteTarget.message}
+          onCancel={() => setDeleteTarget(null)}
+          onConfirm={confirmDelete}
+        />
+      ) : null}
 
-      <section className="space-y-4">
-        <SectionTitle title={editingWorkId ? "作品編集" : "作品登録"} />
+      {page === "register" ? (
+      <section className="space-y-4 pb-24">
+        <SectionTitle title={editingWorkId ? "作品編集" : "作品を登録"} />
         <form onSubmit={saveWork} className="space-y-4">
-          <Input
-            label="タイトル"
-            value={workForm.title}
-            onChange={(value) => setWorkForm({ ...workForm, title: value })}
-            required
-          />
-          <Select
-            label="種別"
-            value={workForm.type}
-            onChange={(value) =>
-              setWorkForm({ ...workForm, type: value as WorkType })
-            }
-            options={[
-              { value: "image", label: "image" },
-              { value: "video", label: "video" },
-            ]}
-          />
+          <fieldset className="space-y-2">
+            <legend className="flex items-center gap-2 text-sm font-medium text-ink">
+              種別
+              <RequiredLabel />
+            </legend>
+            <div className="grid grid-cols-2 gap-2">
+              {(["image", "video"] as WorkType[]).map((type) => (
+                <label
+                  key={type}
+                  className={`flex min-h-14 cursor-pointer items-center rounded-md border px-4 text-sm font-medium transition ${
+                    workForm.type === type
+                      ? "border-ink bg-ink text-white"
+                      : "border-line bg-white text-ink"
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="work-type"
+                    value={type}
+                    checked={workForm.type === type}
+                    required
+                    onChange={() =>
+                      setWorkForm({
+                        ...workForm,
+                        type,
+                        image_url: type === "image" ? workForm.image_url : null,
+                        youtube_url: type === "video" ? workForm.youtube_url : null,
+                      })
+                    }
+                    className="sr-only"
+                  />
+                  {type === "image" ? "Image" : "Video"}
+                </label>
+              ))}
+            </div>
+          </fieldset>
           {workForm.type === "image" ? (
             <div className="space-y-2">
-              <label className="text-sm font-medium text-ink">画像</label>
-              <input
-                type="file"
-                accept="image/jpeg,image/png,image/webp,image/gif"
-                onChange={(event) => {
-                  const file = event.currentTarget.files?.[0];
-                  if (file) uploadImage(file);
-                }}
-                className="block w-full text-sm"
-              />
+              <label className="flex items-center gap-2 text-sm font-medium text-ink">
+                画像
+                <RequiredLabel />
+              </label>
+              <label className="mx-auto flex min-h-12 w-fit cursor-pointer items-center rounded-md border border-ink bg-white px-5 text-sm font-medium text-ink transition hover:bg-ink hover:text-white">
+                ファイルを選択
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/gif"
+                  onChange={(event) => {
+                    const file = event.currentTarget.files?.[0];
+                    if (file) uploadImage(file);
+                  }}
+                  className="sr-only"
+                />
+              </label>
+              <p className="text-center text-sm text-muted">
+                {selectedFileName ?? "ファイルが選択されていません"}
+              </p>
               {isUploading ? (
                 <p className="inline-flex items-center gap-2 text-sm text-muted">
                   <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
@@ -417,17 +576,29 @@ function AdminConsole() {
               ) : null}
             </div>
           ) : (
-            <Input
-              label="YouTube URL"
-              type="url"
-              value={workForm.youtube_url ?? ""}
-              onChange={(value) =>
-                setWorkForm({ ...workForm, youtube_url: value })
-              }
-              placeholder="https://www.youtube.com/watch?v=..."
-              required
-            />
+            <div className="space-y-2">
+              <label className="flex items-center gap-2 text-sm font-medium text-ink">
+                YouTube URL
+                <RequiredLabel />
+              </label>
+              <input
+                type="url"
+                value={workForm.youtube_url ?? ""}
+                onChange={(event) =>
+                  setWorkForm({ ...workForm, youtube_url: event.currentTarget.value })
+                }
+                placeholder="https://www.youtube.com/watch?v=..."
+                required
+                className="min-h-12 w-full rounded-md border border-line bg-white px-3 text-base outline-none focus:border-2 focus:border-blue-500"
+              />
+            </div>
           )}
+          <Input
+            label="タイトル"
+            value={workForm.title}
+            onChange={(value) => setWorkForm({ ...workForm, title: value })}
+            required
+          />
           <Textarea
             label="説明文"
             value={workForm.description ?? ""}
@@ -455,9 +626,8 @@ function AdminConsole() {
               setWorkForm({ ...workForm, display_order: Number(value) || 0 })
             }
           />
-          <div className="flex gap-2">
-            <button className="inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-md bg-ink px-4 text-sm font-semibold text-white">
-              <Save className="h-4 w-4" aria-hidden="true" />
+          <div className="fixed inset-x-0 bottom-0 z-30 mx-auto flex max-w-2xl gap-2 bg-paper/95 p-3 backdrop-blur safe-bottom">
+            <button className="inline-flex min-h-12 flex-1 items-center justify-center rounded-md bg-ink px-4 text-sm font-semibold text-white">
               保存
             </button>
             {editingWorkId ? (
@@ -475,14 +645,34 @@ function AdminConsole() {
           </div>
         </form>
       </section>
+      ) : null}
 
+      {page === "works" ? (
       <section className="space-y-3">
         <SectionTitle title="作品一覧" />
-        {works.length === 0 ? (
+        <div className="flex gap-2" role="tablist" aria-label="作品種別">
+          {(["image", "video"] as WorkType[]).map((type) => (
+            <button
+              key={type}
+              type="button"
+              role="tab"
+              aria-selected={workListType === type}
+              onClick={() => setWorkListType(type)}
+              className={`min-h-11 flex-1 rounded-md px-4 text-sm font-medium ${
+                workListType === type
+                  ? "bg-ink text-white"
+                  : "bg-white text-ink"
+              }`}
+            >
+              {type === "image" ? "Image" : "Video"}
+            </button>
+          ))}
+        </div>
+        {visibleWorks.length === 0 ? (
           <StateBox title="作品なし" body="最初の作品を登録してください。" />
         ) : (
           <div className="space-y-2">
-            {works.map((work) => (
+            {visibleWorks.map((work) => (
               <div
                 key={work.id}
                 className="flex gap-3 rounded-md border border-line bg-white p-2"
@@ -531,8 +721,10 @@ function AdminConsole() {
           </div>
         )}
       </section>
+      ) : null}
 
-      <section className="space-y-4 pb-10">
+      {page === "categories" ? (
+      <section className="space-y-4 pb-24">
         <SectionTitle title={editingCategoryId ? "カテゴリ編集" : "カテゴリ追加"} />
         <form onSubmit={saveCategory} className="space-y-3">
           <Input label="カテゴリ名" value={categoryName} onChange={setCategoryName} />
@@ -542,10 +734,11 @@ function AdminConsole() {
             value={String(categoryOrder)}
             onChange={(value) => setCategoryOrder(Number(value) || 0)}
           />
-          <button className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md bg-moss px-4 text-sm font-semibold text-white">
-            <Plus className="h-4 w-4" aria-hidden="true" />
-            保存
-          </button>
+          <div className="fixed inset-x-0 bottom-0 z-30 mx-auto max-w-2xl bg-paper/95 p-3 backdrop-blur safe-bottom">
+            <button className="inline-flex min-h-12 w-full items-center justify-center rounded-md bg-ink px-4 text-sm font-semibold text-white">
+              保存
+            </button>
+          </div>
         </form>
         {categories.length === 0 ? (
           <StateBox title="カテゴリなし" body="カテゴリを追加できます。" />
@@ -583,6 +776,91 @@ function AdminConsole() {
           </div>
         )}
       </section>
+      ) : null}
+    </div>
+  );
+}
+
+function AdminNavLink({
+  href,
+  active,
+  label,
+  onSelect,
+}: {
+  href: string;
+  active: boolean;
+  label: string;
+  onSelect: () => void;
+}) {
+  return (
+    <Link
+      href={href}
+      onClick={onSelect}
+      className={`flex min-h-12 items-center rounded-md px-4 text-sm font-medium ${
+        active ? "bg-ink text-white" : "text-ink"
+      }`}
+    >
+      {label}
+    </Link>
+  );
+}
+
+function ConfirmDialog({
+  message,
+  onCancel,
+  onConfirm,
+}: {
+  message: string;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-ink/30 px-4"
+      role="dialog"
+      aria-modal="true"
+      aria-label="削除の確認"
+    >
+      <div className="w-full max-w-sm rounded-lg bg-white p-5 shadow-soft">
+        <p className="text-sm leading-6 text-ink">{message}</p>
+        <div className="mt-5 flex gap-2">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="min-h-12 flex-1 rounded-md border border-line px-4 text-sm font-medium text-ink"
+          >
+            キャンセル
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            className="min-h-12 flex-1 rounded-md bg-accent px-4 text-sm font-semibold text-white"
+          >
+            削除
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AdminWorksSkeleton() {
+  return (
+    <div className="space-y-3" aria-label="作品一覧を読み込み中" aria-busy="true">
+      <div className="h-6 w-28 animate-pulse rounded bg-[#e9e4da]" />
+      {Array.from({ length: 5 }, (_, index) => (
+        <div
+          key={index}
+          className="flex gap-3 rounded-md border border-line bg-white p-2"
+        >
+          <div className="h-20 w-20 shrink-0 animate-pulse rounded bg-[#e9e4da]" />
+          <div className="flex min-w-0 flex-1 flex-col justify-center gap-2">
+            <div className="h-4 w-3/5 animate-pulse rounded bg-[#e9e4da]" />
+            <div className="h-3 w-2/5 animate-pulse rounded bg-[#e9e4da]" />
+            <div className="h-9 w-24 animate-pulse rounded bg-[#e9e4da]" />
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
@@ -644,6 +922,10 @@ function ErrorText({ children }: { children: React.ReactNode }) {
   return <p className="text-sm text-accent">{children}</p>;
 }
 
+function RequiredLabel() {
+  return <span className="text-xs font-medium text-accent">必須</span>;
+}
+
 function Input({
   label,
   value,
@@ -663,7 +945,10 @@ function Input({
 }) {
   return (
     <label className="block space-y-2">
-      <span className="text-sm font-medium text-ink">{label}</span>
+      <span className="flex items-center gap-2 text-sm font-medium text-ink">
+        {label}
+        {required ? <RequiredLabel /> : null}
+      </span>
       <input
         type={type}
         value={value}
@@ -671,7 +956,7 @@ function Input({
         placeholder={placeholder}
         autoComplete={autoComplete}
         onChange={(event) => onChange(event.currentTarget.value)}
-        className="min-h-12 w-full rounded-md border border-line bg-white px-3 text-base outline-none focus:border-accent"
+        className="min-h-12 w-full rounded-md border border-line bg-white px-3 text-base outline-none focus:border-2 focus:border-blue-500"
       />
     </label>
   );
@@ -693,7 +978,7 @@ function Textarea({
         value={value}
         onChange={(event) => onChange(event.currentTarget.value)}
         rows={4}
-        className="w-full rounded-md border border-line bg-white px-3 py-3 text-base outline-none focus:border-accent"
+        className="w-full rounded-md border border-line bg-white px-3 py-3 text-base outline-none focus:border-2 focus:border-blue-500"
       />
     </label>
   );
@@ -716,7 +1001,7 @@ function Select({
       <select
         value={value}
         onChange={(event) => onChange(event.currentTarget.value)}
-        className="min-h-12 w-full rounded-md border border-line bg-white px-3 text-base outline-none focus:border-accent"
+        className="min-h-12 w-full rounded-md border border-line bg-white px-3 text-base outline-none focus:border-2 focus:border-blue-500"
       >
         {options.map((option) => (
           <option key={option.value} value={option.value}>

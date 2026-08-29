@@ -1,11 +1,5 @@
-import type { Metadata } from "next";
-import { AdminDashboard } from "@/components/AdminDashboard";
-
-export const metadata: Metadata = {
-  title: "Admin",
-  description: "作品とカテゴリを管理します。",
-};
+import { redirect } from "next/navigation";
 
 export default function AdminPage() {
-  return <AdminDashboard />;
+  redirect("/admin/works");
 }
