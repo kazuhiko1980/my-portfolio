@@ -125,7 +125,7 @@ export function WorkDetail() {
           className="inline-flex min-h-11 items-center gap-2 rounded-full px-1 pr-3 text-sm font-medium text-ink"
         >
           <ArrowLeft className="h-5 w-5" aria-hidden="true" />
-          Back
+          一覧に戻る
         </Link>
         <button
           type="button"
