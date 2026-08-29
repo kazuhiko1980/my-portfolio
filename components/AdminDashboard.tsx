@@ -214,7 +214,7 @@ function AuthenticatedAdmin({ page }: { page: AdminPage }) {
             aria-label="ログアウト"
           >
             <LogOut className="h-4 w-4" aria-hidden="true" />
-            Logout
+            ログアウト
           </button>
         </div>
       </aside>
