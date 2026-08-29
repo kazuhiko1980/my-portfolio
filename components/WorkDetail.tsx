@@ -323,7 +323,7 @@ function PagerLink({
   return (
     <Link
       href={href}
-      className="inline-flex min-h-12 flex-1 items-center justify-center gap-1 rounded-md bg-ink text-sm font-medium text-white"
+      className="inline-flex min-h-12 flex-1 items-center justify-center gap-1 rounded-md border border-ink bg-white text-sm font-medium text-ink"
       aria-label={label}
     >
       {content}
