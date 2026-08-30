@@ -66,6 +66,8 @@ function AuthenticatedAdmin({ page }: { page: AdminPage }) {
   const [password, setPassword] = useState("");
   const [authError, setAuthError] = useState<string | null>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
+  const addMenuRef = useRef<HTMLDivElement>(null);
 
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
 
@@ -90,6 +92,19 @@ function AuthenticatedAdmin({ page }: { page: AdminPage }) {
       data.subscription.unsubscribe();
     };
   }, [supabase]);
+
+  useEffect(() => {
+    if (!isAddMenuOpen) return;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!addMenuRef.current?.contains(event.target as Node)) {
+        setIsAddMenuOpen(false);
+      }
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, [isAddMenuOpen]);
 
   async function signIn(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -157,13 +172,42 @@ function AuthenticatedAdmin({ page }: { page: AdminPage }) {
           <p className="mt-1 text-xs text-muted">{user.email}</p>
         </div>
         <div className="flex items-center gap-2">
-          <Link
-            href="/admin/register"
-            className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-white text-ink"
-            aria-label="作品登録ページを開く"
-          >
-            <Plus className="h-5 w-5" aria-hidden="true" />
-          </Link>
+          <div ref={addMenuRef} className="relative">
+            <button
+              type="button"
+              onClick={() => setIsAddMenuOpen((isOpen) => !isOpen)}
+              className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-white text-ink"
+              aria-label="追加メニューを開く"
+              aria-expanded={isAddMenuOpen}
+              aria-haspopup="menu"
+            >
+              <Plus className="h-5 w-5" aria-hidden="true" />
+            </button>
+            {isAddMenuOpen ? (
+              <div
+                className="absolute right-0 top-12 z-30 w-48 rounded-md bg-white p-1 shadow-soft"
+                role="menu"
+                aria-label="追加メニュー"
+              >
+                <Link
+                  href="/admin/register"
+                  onClick={() => setIsAddMenuOpen(false)}
+                  className="flex min-h-11 items-center rounded-md px-3 text-sm font-medium text-ink hover:bg-paper"
+                  role="menuitem"
+                >
+                  作品を登録
+                </Link>
+                <Link
+                  href="/admin/categories"
+                  onClick={() => setIsAddMenuOpen(false)}
+                  className="flex min-h-11 items-center rounded-md px-3 text-sm font-medium text-ink hover:bg-paper"
+                  role="menuitem"
+                >
+                  カテゴリを追加
+                </Link>
+              </div>
+            ) : null}
+          </div>
           <button
             type="button"
             onClick={() => setIsMenuOpen((isOpen) => !isOpen)}
@@ -211,7 +255,7 @@ function AuthenticatedAdmin({ page }: { page: AdminPage }) {
           <AdminNavLink href="/admin/categories" active={page === "categories"} label="カテゴリ追加" onSelect={() => setIsMenuOpen(false)} />
           <AdminNavLink href="/admin/logo" active={page === "logo"} label="ロゴ設定" onSelect={() => setIsMenuOpen(false)} />
         </nav>
-        <div className="mt-auto border-t border-line p-3">
+        <div className="mt-auto p-3">
           <button
             type="button"
             onClick={() => supabase.auth.signOut()}
@@ -247,7 +291,6 @@ function AdminConsole({ page }: { page: AdminPage }) {
   const [workForm, setWorkForm] = useState<WorkFormInput>(emptyWorkForm);
   const [editingWorkId, setEditingWorkId] = useState<string | null>(null);
   const [categoryName, setCategoryName] = useState("");
-  const [categoryOrder, setCategoryOrder] = useState(0);
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -256,6 +299,7 @@ function AdminConsole({ page }: { page: AdminPage }) {
   const [workListType, setWorkListType] = useState<WorkType>("image");
   const [isReorderMode, setIsReorderMode] = useState(false);
   const [draggingWorkId, setDraggingWorkId] = useState<string | null>(null);
+  const [reorderSnapshot, setReorderSnapshot] = useState<WorkWithCategory[] | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
   const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
   const [logoUrl, setLogoUrl] = useState("");
@@ -266,7 +310,9 @@ function AdminConsole({ page }: { page: AdminPage }) {
   const [logoOffsetY, setLogoOffsetY] = useState(0);
   const cropCanvasRef = useRef<HTMLCanvasElement>(null);
 
-  const visibleWorks = works.filter((work) => work.type === workListType);
+  const visibleWorks = works
+    .filter((work) => work.type === workListType)
+    .sort((first, second) => first.display_order - second.display_order);
 
   async function refresh() {
     setIsLoading(true);
@@ -552,7 +598,7 @@ function AdminConsole({ page }: { page: AdminPage }) {
     });
   }
 
-  async function reorderWorks(sourceId: string, targetId: string) {
+  function reorderWorks(sourceId: string, targetId: string) {
     if (sourceId === targetId) return;
     const current = [...visibleWorks];
     const sourceIndex = current.findIndex((work) => work.id === sourceId);
@@ -564,8 +610,14 @@ function AdminConsole({ page }: { page: AdminPage }) {
       const nextIndex = current.findIndex((item) => item.id === work.id);
       return nextIndex < 0 ? work : { ...work, display_order: nextIndex };
     }));
+  }
+
+  async function saveReorderedWorks() {
+    const orderedWorks = works
+      .filter((work) => work.type === workListType)
+      .sort((first, second) => first.display_order - second.display_order);
     const results = await Promise.all(
-      current.map((work, index) =>
+      orderedWorks.map((work, index) =>
         supabase.from("works").update({ display_order: index }).eq("id", work.id),
       ),
     );
@@ -582,7 +634,7 @@ function AdminConsole({ page }: { page: AdminPage }) {
     const index = visibleWorks.findIndex((work) => work.id === workId);
     const target = visibleWorks[index + direction];
     if (!target) return;
-    await reorderWorks(workId, target.id);
+    reorderWorks(workId, target.id);
   }
 
   async function saveCategory(event: React.FormEvent<HTMLFormElement>) {
@@ -595,12 +647,11 @@ function AdminConsole({ page }: { page: AdminPage }) {
 
     const payload = {
       name: categoryName.trim(),
-      display_order: categoryOrder,
       updated_at: new Date().toISOString(),
     };
     const request = editingCategoryId
       ? supabase.from("categories").update(payload).eq("id", editingCategoryId)
-      : supabase.from("categories").insert(payload);
+      : supabase.from("categories").insert({ ...payload, display_order: 0 });
     const { error: saveError } = await request;
     if (saveError) {
       setError(saveError.message);
@@ -608,7 +659,6 @@ function AdminConsole({ page }: { page: AdminPage }) {
     }
 
     setCategoryName("");
-    setCategoryOrder(0);
     setEditingCategoryId(null);
     setStatus(editingCategoryId ? "カテゴリを更新しました。" : "カテゴリを追加しました。");
     await refresh();
@@ -670,7 +720,6 @@ function AdminConsole({ page }: { page: AdminPage }) {
   function editCategory(category: Category) {
     setEditingCategoryId(category.id);
     setCategoryName(category.name);
-    setCategoryOrder(category.display_order);
   }
 
   if (isLoading) {
@@ -706,11 +755,7 @@ function AdminConsole({ page }: { page: AdminPage }) {
               {(["image", "video"] as WorkType[]).map((type) => (
                 <label
                   key={type}
-                  className={`flex min-h-14 cursor-pointer items-center rounded-md border px-4 text-sm font-medium transition ${
-                    workForm.type === type
-                      ? "border-ink bg-ink text-white"
-                      : "border-line bg-white text-ink"
-                  }`}
+                  className="flex min-h-12 cursor-pointer items-center gap-3 rounded-md border border-line bg-white px-4 text-sm font-medium text-ink"
                 >
                   <input
                     type="radio"
@@ -726,9 +771,9 @@ function AdminConsole({ page }: { page: AdminPage }) {
                         youtube_url: type === "video" ? workForm.youtube_url : null,
                       })
                     }
-                    className="sr-only"
+                    className="h-5 w-5 accent-ink"
                   />
-                  {type === "image" ? "Image" : "Video"}
+                  {type === "image" ? "画像" : "動画"}
                 </label>
               ))}
             </div>
@@ -739,7 +784,8 @@ function AdminConsole({ page }: { page: AdminPage }) {
                 画像
                 <RequiredLabel />
               </label>
-              <label className="mx-auto flex min-h-12 w-fit cursor-pointer items-center rounded-md border border-ink bg-white px-5 text-sm font-medium text-ink transition hover:bg-ink hover:text-white">
+              <p className="text-sm text-muted">ファイルを選択してください</p>
+              <label className="flex min-h-12 w-full cursor-pointer items-center justify-center rounded-md border border-ink bg-white px-5 text-sm font-medium text-ink transition hover:bg-ink hover:text-white">
                 ファイルを選択
                 <input
                   type="file"
@@ -751,9 +797,9 @@ function AdminConsole({ page }: { page: AdminPage }) {
                   className="sr-only"
                 />
               </label>
-              <p className="text-center text-sm text-muted">
-                {selectedFileName ?? "ファイルが選択されていません"}
-              </p>
+              {selectedFileName ? (
+                <p className="text-center text-sm text-muted">{selectedFileName}</p>
+              ) : null}
               {isUploading ? (
                 <p className="inline-flex items-center gap-2 text-sm text-muted">
                   <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
@@ -815,30 +861,22 @@ function AdminConsole({ page }: { page: AdminPage }) {
               })),
             ]}
           />
-          <Input
-            label="表示順"
-            type="number"
-            value={String(workForm.display_order)}
-            onChange={(value) =>
-              setWorkForm({ ...workForm, display_order: Number(value) || 0 })
-            }
-          />
+          {editingWorkId ? (
+            <button
+              type="button"
+              onClick={() => {
+                const editingWork = works.find((work) => work.id === editingWorkId);
+                if (editingWork) deleteWork(editingWork);
+              }}
+              className="min-h-12 w-full rounded-md border border-red-500 px-4 text-sm font-semibold text-red-600"
+            >
+              削除
+            </button>
+          ) : null}
           <div className="fixed inset-x-0 bottom-0 z-30 mx-auto flex max-w-2xl gap-2 bg-paper/95 p-3 backdrop-blur safe-bottom">
-            <button className="inline-flex min-h-12 flex-1 items-center justify-center rounded-md bg-ink px-4 text-sm font-semibold text-white">
+            <button className="inline-flex min-h-12 w-full items-center justify-center rounded-md bg-ink px-4 text-sm font-semibold text-white">
               保存
             </button>
-            {editingWorkId ? (
-              <button
-                type="button"
-                onClick={() => {
-                  setEditingWorkId(null);
-                  setWorkForm(emptyWorkForm);
-                }}
-                className="min-h-12 rounded-md border border-line px-4 text-sm font-medium"
-              >
-                取消
-              </button>
-            ) : null}
           </div>
         </form>
       </section>
@@ -891,12 +929,15 @@ function AdminConsole({ page }: { page: AdminPage }) {
       <section className="space-y-3">
         <div className="flex items-center justify-between gap-3">
           <SectionTitle title="作品一覧" />
-          <button type="button" onClick={() => setIsReorderMode((mode) => !mode)} className={`inline-flex min-h-10 items-center gap-2 rounded-md border px-3 text-xs font-medium ${isReorderMode ? "border-ink bg-ink text-white" : "border-line bg-white text-ink"}`} aria-pressed={isReorderMode}>
-            <ArrowUpDown className="h-4 w-4" aria-hidden="true" />
-            {isReorderMode ? "完了" : "並び替え"}
-          </button>
+          <div className="flex items-center gap-2">
+            {isReorderMode ? <button type="button" onClick={() => { if (reorderSnapshot) setWorks(reorderSnapshot); setIsReorderMode(false); setReorderSnapshot(null); }} className="min-h-10 rounded-md border border-line bg-white px-3 text-xs font-medium">キャンセル</button> : null}
+            <button type="button" onClick={() => { if (isReorderMode) { saveReorderedWorks(); setIsReorderMode(false); setReorderSnapshot(null); } else { setReorderSnapshot([...works]); setIsReorderMode(true); } }} className={`inline-flex min-h-10 items-center gap-2 rounded-md border px-3 text-xs font-medium ${isReorderMode ? "border-ink bg-ink text-white" : "border-line bg-white text-ink"}`} aria-pressed={isReorderMode}>
+              <ArrowUpDown className="h-4 w-4" aria-hidden="true" />
+              {isReorderMode ? "完了" : "並び替え"}
+            </button>
+          </div>
         </div>
-        <div className="flex gap-2" role="tablist" aria-label="作品種別">
+        <div className="flex border-b border-line" role="tablist" aria-label="作品種別">
           {(["image", "video"] as WorkType[]).map((type) => (
             <button
               key={type}
@@ -904,13 +945,13 @@ function AdminConsole({ page }: { page: AdminPage }) {
               role="tab"
               aria-selected={workListType === type}
               onClick={() => setWorkListType(type)}
-              className={`min-h-11 flex-1 rounded-md px-4 text-sm font-medium ${
+              className={`min-h-11 flex-1 border-b-2 px-4 text-sm font-medium ${
                 workListType === type
-                  ? "bg-ink text-white"
-                  : "bg-white text-ink"
+                  ? "border-ink text-ink"
+                  : "border-transparent text-muted"
               }`}
             >
-              {type === "image" ? "Image" : "Video"}
+              {type === "image" ? "画像" : "動画"}
             </button>
           ))}
         </div>
@@ -921,17 +962,24 @@ function AdminConsole({ page }: { page: AdminPage }) {
             {visibleWorks.map((work) => (
               <div
                 key={work.id}
-                draggable={isReorderMode}
-                onDragStart={() => setDraggingWorkId(work.id)}
-                onDragEnd={() => setDraggingWorkId(null)}
                 onDragOver={(event) => event.preventDefault()}
                 onDrop={() => {
                   if (draggingWorkId) reorderWorks(draggingWorkId, work.id);
                   setDraggingWorkId(null);
                 }}
-                className={`flex items-center gap-3 rounded-md border border-line bg-white p-2 ${isReorderMode ? "cursor-grab active:cursor-grabbing" : ""} ${draggingWorkId === work.id ? "opacity-50" : ""}`}
+                className={`flex items-center gap-3 rounded-md border border-line bg-white p-2 ${draggingWorkId === work.id ? "opacity-50" : ""}`}
               >
-                {isReorderMode ? <GripVertical className="h-5 w-5 shrink-0 text-muted" aria-label="移動" /> : null}
+                {isReorderMode ? (
+                  <span
+                    draggable
+                    onDragStart={() => setDraggingWorkId(work.id)}
+                    onDragEnd={() => setDraggingWorkId(null)}
+                    className="inline-flex h-10 w-8 shrink-0 cursor-grab items-center justify-center touch-none active:cursor-grabbing"
+                    aria-label="ドラッグして移動"
+                  >
+                    <GripVertical className="h-5 w-5 text-muted" aria-hidden="true" />
+                  </span>
+                ) : null}
                 <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded bg-[#e9e4da]">
                   {work.image_url ? (
                     <Image
@@ -993,12 +1041,6 @@ function AdminConsole({ page }: { page: AdminPage }) {
         <SectionTitle title={editingCategoryId ? "カテゴリ編集" : "カテゴリ追加"} />
         <form onSubmit={saveCategory} className="space-y-3">
           <Input label="カテゴリ名" value={categoryName} onChange={setCategoryName} />
-          <Input
-            label="表示順"
-            type="number"
-            value={String(categoryOrder)}
-            onChange={(value) => setCategoryOrder(Number(value) || 0)}
-          />
           <div className="fixed inset-x-0 bottom-0 z-30 mx-auto max-w-2xl bg-paper/95 p-3 backdrop-blur safe-bottom">
             <button className="inline-flex min-h-12 w-full items-center justify-center rounded-md bg-ink px-4 text-sm font-semibold text-white">
               保存
