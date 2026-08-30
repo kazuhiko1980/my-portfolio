@@ -7,9 +7,11 @@ import type { User } from "@supabase/supabase-js";
 import {
   AlertCircle,
   ArrowLeft,
+  ArrowUpDown,
   Edit3,
   Eye,
   EyeOff,
+  GripVertical,
   ImageIcon,
   Loader2,
   LogOut,
@@ -250,6 +252,8 @@ function AdminConsole({ page }: { page: AdminPage }) {
   const [isLoading, setIsLoading] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
   const [workListType, setWorkListType] = useState<WorkType>("image");
+  const [isReorderMode, setIsReorderMode] = useState(false);
+  const [draggingWorkId, setDraggingWorkId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
   const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
   const [logoUrl, setLogoUrl] = useState("");
@@ -544,6 +548,32 @@ function AdminConsole({ page }: { page: AdminPage }) {
       id: work.id,
       message: "この作品を削除しますか？",
     });
+  }
+
+  async function reorderWorks(sourceId: string, targetId: string) {
+    if (sourceId === targetId) return;
+    const current = [...visibleWorks];
+    const sourceIndex = current.findIndex((work) => work.id === sourceId);
+    const targetIndex = current.findIndex((work) => work.id === targetId);
+    if (sourceIndex < 0 || targetIndex < 0) return;
+    const [moved] = current.splice(sourceIndex, 1);
+    current.splice(targetIndex, 0, moved);
+    setWorks((items) => items.map((work) => {
+      const nextIndex = current.findIndex((item) => item.id === work.id);
+      return nextIndex < 0 ? work : { ...work, display_order: nextIndex };
+    }));
+    const results = await Promise.all(
+      current.map((work, index) =>
+        supabase.from("works").update({ display_order: index }).eq("id", work.id),
+      ),
+    );
+    const failed = results.find((result) => result.error);
+    if (failed?.error) {
+      setError(failed.error.message);
+      await refresh();
+      return;
+    }
+    setStatus("作品の並び順を保存しました。");
   }
 
   async function saveCategory(event: React.FormEvent<HTMLFormElement>) {
@@ -850,7 +880,13 @@ function AdminConsole({ page }: { page: AdminPage }) {
 
       {page === "works" ? (
       <section className="space-y-3">
-        <SectionTitle title="作品一覧" />
+        <div className="flex items-center justify-between gap-3">
+          <SectionTitle title="作品一覧" />
+          <button type="button" onClick={() => setIsReorderMode((mode) => !mode)} className={`inline-flex min-h-10 items-center gap-2 rounded-md border px-3 text-xs font-medium ${isReorderMode ? "border-ink bg-ink text-white" : "border-line bg-white text-ink"}`} aria-pressed={isReorderMode}>
+            <ArrowUpDown className="h-4 w-4" aria-hidden="true" />
+            {isReorderMode ? "完了" : "並び替え"}
+          </button>
+        </div>
         <div className="flex gap-2" role="tablist" aria-label="作品種別">
           {(["image", "video"] as WorkType[]).map((type) => (
             <button
@@ -876,8 +912,17 @@ function AdminConsole({ page }: { page: AdminPage }) {
             {visibleWorks.map((work) => (
               <div
                 key={work.id}
-                className="flex gap-3 rounded-md border border-line bg-white p-2"
+                draggable={isReorderMode}
+                onDragStart={() => setDraggingWorkId(work.id)}
+                onDragEnd={() => setDraggingWorkId(null)}
+                onDragOver={(event) => event.preventDefault()}
+                onDrop={() => {
+                  if (draggingWorkId) reorderWorks(draggingWorkId, work.id);
+                  setDraggingWorkId(null);
+                }}
+                className={`flex items-center gap-3 rounded-md border border-line bg-white p-2 ${isReorderMode ? "cursor-grab active:cursor-grabbing" : ""} ${draggingWorkId === work.id ? "opacity-50" : ""}`}
               >
+                {isReorderMode ? <GripVertical className="h-5 w-5 shrink-0 text-muted" aria-label="移動" /> : null}
                 <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded bg-[#e9e4da]">
                   {work.image_url ? (
                     <Image
