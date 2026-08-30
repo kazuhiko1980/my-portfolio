@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import {
   AlertCircle,
@@ -111,15 +112,15 @@ export function PortfolioHome({ type }: PortfolioHomeProps) {
   return (
     <main className="mx-auto min-h-dvh w-full max-w-3xl bg-paper">
       <header className="sticky top-0 z-20 border-b border-line/80 bg-paper/95 px-4 pb-3 pt-4 backdrop-blur">
-        <div className="mb-4 flex items-end justify-between gap-4">
-          <div>
-            <p className="text-xs font-medium uppercase tracking-[0.18em] text-moss">
-              Portfolio
-            </p>
-            <h1 className="mt-1 text-3xl font-semibold leading-none text-ink">
-              {currentPage.title}
-            </h1>
-          </div>
+        <div className="mb-4 flex items-center justify-between gap-4">
+          <Image
+            src="/portfolio-logo.png"
+            alt="Portfolio logo"
+            width={48}
+            height={48}
+            className="h-12 w-12 object-contain"
+            priority
+          />
           <div className="relative flex items-center gap-2">
             <button
               type="button"
