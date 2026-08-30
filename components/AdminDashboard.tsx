@@ -185,7 +185,7 @@ function AuthenticatedAdmin({ page }: { page: AdminPage }) {
             </button>
             {isAddMenuOpen ? (
               <div
-                className="absolute right-0 top-12 z-30 w-48 rounded-md bg-white p-1 shadow-soft"
+                className="absolute right-0 top-12 z-30 w-48 rounded-lg bg-white p-1 shadow-soft"
                 role="menu"
                 aria-label="追加メニュー"
               >
@@ -1011,22 +1011,26 @@ function AdminConsole({ page }: { page: AdminPage }) {
                         </button>
                       </div>
                     ) : null}
-                    <button
-                      type="button"
-                      onClick={() => editWork(work)}
-                      className="inline-flex min-h-9 items-center gap-1 rounded-md border border-line px-3 text-xs font-medium"
-                    >
-                      <Edit3 className="h-3.5 w-3.5" aria-hidden="true" />
-                      編集
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => deleteWork(work)}
-                      className="inline-flex min-h-9 items-center gap-1 rounded-md border border-line px-3 text-xs font-medium text-accent"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
-                      削除
-                    </button>
+                    {!isReorderMode ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => editWork(work)}
+                          className="inline-flex min-h-9 items-center gap-1 rounded-md border border-line px-3 text-xs font-medium"
+                        >
+                          <Edit3 className="h-3.5 w-3.5" aria-hidden="true" />
+                          編集
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => deleteWork(work)}
+                          className="inline-flex min-h-9 items-center gap-1 rounded-md border border-line px-3 text-xs font-medium text-accent"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                          削除
+                        </button>
+                      </>
+                    ) : null}
                   </div>
                 </div>
               </div>
