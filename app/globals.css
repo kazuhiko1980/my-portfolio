@@ -66,3 +66,18 @@ img {
 .lightbox-image-in {
   animation: lightbox-image-in 300ms ease-out both;
 }
+
+@keyframes notice-slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(-1rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.notice-slide-in {
+  animation: notice-slide-in 240ms ease-out both;
+}

@@ -119,9 +119,9 @@ export function PortfolioHome({ type }: PortfolioHomeProps) {
           <Image
             src={logoUrl ?? "/portfolio-logo.png"}
             alt="Portfolio logo"
-            width={48}
-            height={48}
-            className="h-12 w-12 object-contain"
+            width={160}
+            height={40}
+            className="h-10 w-auto object-contain"
             priority
           />
           <div className="relative flex items-center gap-2">

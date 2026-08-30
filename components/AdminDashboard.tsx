@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { User } from "@supabase/supabase-js";
 import {
@@ -109,7 +109,7 @@ function AuthenticatedAdmin({ page }: { page: AdminPage }) {
       <AdminShell>
         <form onSubmit={signIn} className="space-y-4">
           <div>
-            <h1 className="text-3xl font-semibold text-ink">Admin</h1>
+            <h1 className="text-3xl font-semibold text-ink">haconiwa</h1>
             <p className="mt-2 text-sm leading-6 text-muted">
               管理者メールアドレスとパスワードでログインしてください。
             </p>
@@ -148,7 +148,7 @@ function AuthenticatedAdmin({ page }: { page: AdminPage }) {
             className="text-3xl font-semibold text-ink"
             aria-label="管理画面トップへ移動"
           >
-            Admin
+            haconiwa
           </Link>
           <p className="mt-1 text-xs text-muted">{user.email}</p>
         </div>
@@ -254,6 +254,11 @@ function AdminConsole({ page }: { page: AdminPage }) {
   const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
   const [logoUrl, setLogoUrl] = useState("");
   const [logoFileName, setLogoFileName] = useState<string | null>(null);
+  const [logoSource, setLogoSource] = useState<string | null>(null);
+  const [logoZoom, setLogoZoom] = useState(1);
+  const [logoOffsetX, setLogoOffsetX] = useState(0);
+  const [logoOffsetY, setLogoOffsetY] = useState(0);
+  const cropCanvasRef = useRef<HTMLCanvasElement>(null);
 
   const visibleWorks = works.filter((work) => work.type === workListType);
 
@@ -310,6 +315,22 @@ function AdminConsole({ page }: { page: AdminPage }) {
       });
     }
   }, [editId, page, works]);
+
+  useEffect(() => {
+    if (page !== "logo") return;
+    supabase
+      .from("site_settings")
+      .select("value")
+      .eq("key", "logo_url")
+      .maybeSingle()
+      .then(({ data }) => setLogoUrl(data?.value ?? ""));
+  }, [page, supabase]);
+
+  useEffect(() => {
+    if (!status) return;
+    const timeoutId = window.setTimeout(() => setStatus(null), 3000);
+    return () => window.clearTimeout(timeoutId);
+  }, [status]);
 
   async function uploadImage(file: File) {
     setSelectedFileName(file.name);
@@ -368,6 +389,81 @@ function AdminConsole({ page }: { page: AdminPage }) {
     setIsUploading(false);
   }
 
+  function selectLogo(file: File) {
+    setLogoFileName(file.name);
+    setError(null);
+    if (!file.type.startsWith("image/")) {
+      setError("画像ファイルを選択してください。");
+      return;
+    }
+    if (file.size > 4 * 1024 * 1024) {
+      setError("ロゴ画像は4MB以下にしてください。");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => setLogoSource(String(reader.result));
+    reader.readAsDataURL(file);
+  }
+
+  function drawLogoCrop(sourceUrl: string, canvas: HTMLCanvasElement) {
+    return new Promise<void>((resolve, reject) => {
+    const source = new window.Image();
+    source.onload = () => {
+      const outputWidth = 1200;
+      const outputHeight = 400;
+      const cropRatio = outputWidth / outputHeight;
+      const sourceRatio = source.width / source.height;
+      const cropWidth = sourceRatio > cropRatio ? source.height * cropRatio : source.width;
+      const cropHeight = sourceRatio > cropRatio ? source.height : source.width / cropRatio;
+      const scaledWidth = cropWidth / logoZoom;
+      const scaledHeight = cropHeight / logoZoom;
+      const maxOffsetX = Math.max(0, (source.width - scaledWidth) / 2);
+      const maxOffsetY = Math.max(0, (source.height - scaledHeight) / 2);
+      const sourceX = (source.width - scaledWidth) / 2 + (logoOffsetX / 100) * maxOffsetX;
+      const sourceY = (source.height - scaledHeight) / 2 + (logoOffsetY / 100) * maxOffsetY;
+      canvas.width = outputWidth;
+      canvas.height = outputHeight;
+      const context = canvas.getContext("2d");
+      if (!context) {
+        reject(new Error("トリミング画像を作成できませんでした。"));
+        return;
+      }
+      context.drawImage(source, sourceX, sourceY, scaledWidth, scaledHeight, 0, 0, outputWidth, outputHeight);
+      resolve();
+    };
+    source.onerror = () => reject(new Error("画像を読み込めませんでした。"));
+    source.src = sourceUrl;
+    });
+  }
+
+  useEffect(() => {
+    if (!logoSource || !cropCanvasRef.current) return;
+    drawLogoCrop(logoSource, cropCanvasRef.current).catch((caught) =>
+      setError(caught instanceof Error ? caught.message : "トリミング画像を作成できませんでした。"),
+    );
+  }, [logoSource, logoZoom, logoOffsetX, logoOffsetY]);
+
+  async function cropAndUploadLogo() {
+    if (!logoSource || !cropCanvasRef.current) return;
+    setIsUploading(true);
+    setError(null);
+    try {
+      await drawLogoCrop(logoSource, cropCanvasRef.current);
+      const blob = await new Promise<Blob | null>((resolve) =>
+        cropCanvasRef.current?.toBlob(resolve, "image/png"),
+      );
+      if (!blob) throw new Error("トリミング画像を作成できませんでした。");
+      await uploadLogo(new File([blob], "logo.png", { type: "image/png" }));
+      setLogoSource(null);
+      setLogoZoom(1);
+      setLogoOffsetX(0);
+      setLogoOffsetY(0);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "トリミング画像を作成できませんでした。");
+      setIsUploading(false);
+    }
+  }
+
   async function saveLogo(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!logoUrl) {
@@ -377,6 +473,27 @@ function AdminConsole({ page }: { page: AdminPage }) {
     const { error: saveError } = await supabase.from("site_settings").upsert({ key: "logo_url", value: logoUrl, updated_at: new Date().toISOString() });
     if (saveError) setError(saveError.message);
     else setStatus("ロゴを保存しました。ユーザー画面に反映されます。");
+  }
+
+  async function deleteLogo() {
+    if (!logoUrl) return;
+    setError(null);
+    const marker = "/storage/v1/object/public/portfolio/";
+    const storagePath = logoUrl.split(marker)[1];
+    if (storagePath) {
+      await supabase.storage.from("portfolio").remove([storagePath]);
+    }
+    const { error: deleteError } = await supabase
+      .from("site_settings")
+      .delete()
+      .eq("key", "logo_url");
+    if (deleteError) {
+      setError(deleteError.message);
+      return;
+    }
+    setLogoUrl("");
+    setLogoFileName(null);
+    setStatus("ロゴを削除しました。");
   }
 
   async function saveWork(event: React.FormEvent<HTMLFormElement>) {
@@ -689,16 +806,44 @@ function AdminConsole({ page }: { page: AdminPage }) {
       ) : null}
 
       {page === "logo" ? (
-        <section className="space-y-4">
+        <section className="space-y-4 pb-24">
           <SectionTitle title="ロゴ設定" />
           <form onSubmit={saveLogo} className="space-y-4">
             <label className="flex min-h-14 cursor-pointer items-center justify-center rounded-md border border-ink bg-white px-5 text-sm font-medium text-ink">
               ロゴ画像を選択
-              <input type="file" accept="image/*" onChange={(event) => { const file = event.currentTarget.files?.[0]; if (file) uploadLogo(file); }} className="sr-only" />
+              <input type="file" accept="image/*" onChange={(event) => { const file = event.currentTarget.files?.[0]; if (file) selectLogo(file); }} className="sr-only" />
             </label>
             <p className="text-center text-sm text-muted">{logoFileName ?? "ファイルが選択されていません"}</p>
-            {logoUrl ? <div className="flex justify-center rounded-md border border-line bg-white p-6"><Image src={logoUrl} alt="ロゴプレビュー" width={160} height={160} className="h-32 w-32 object-contain" /></div> : null}
-            <button className="min-h-12 w-full rounded-md bg-ink px-4 text-sm font-semibold text-white">保存</button>
+            {logoSource ? (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 px-4" role="dialog" aria-modal="true" aria-label="ロゴのトリミング">
+                <div className="w-full max-w-lg space-y-4 rounded-lg bg-white p-5">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-lg font-semibold text-ink">ロゴをトリミング</p>
+                    <button type="button" onClick={() => setLogoSource(null)} className="inline-flex h-10 w-10 items-center justify-center rounded-md text-ink" aria-label="トリミングを閉じる"><X className="h-5 w-5" aria-hidden="true" /></button>
+                  </div>
+                  <p className="text-sm text-muted">このプレビューの範囲が、そのまま3:1で保存されます。</p>
+                  <canvas ref={cropCanvasRef} className="aspect-[3/1] w-full rounded-md bg-[#e9e4da]" aria-label="ロゴのトリミングプレビュー" />
+                  <label className="block text-sm text-muted">
+                    ズーム
+                    <input type="range" min="1" max="3" step="0.1" value={logoZoom} onChange={(event) => setLogoZoom(Number(event.currentTarget.value))} className="mt-2 w-full accent-ink" />
+                  </label>
+                  <label className="block text-sm text-muted">
+                    左右位置
+                    <input type="range" min="-100" max="100" value={logoOffsetX} onChange={(event) => setLogoOffsetX(Number(event.currentTarget.value))} className="mt-2 w-full accent-ink" />
+                  </label>
+                  <label className="block text-sm text-muted">
+                    上下位置
+                    <input type="range" min="-100" max="100" value={logoOffsetY} onChange={(event) => setLogoOffsetY(Number(event.currentTarget.value))} className="mt-2 w-full accent-ink" />
+                  </label>
+                  <button type="button" onClick={cropAndUploadLogo} disabled={isUploading} className="min-h-12 w-full rounded-md bg-ink px-4 text-sm font-semibold text-white disabled:opacity-50">トリミングしてアップロード</button>
+                </div>
+              </div>
+            ) : null}
+            {logoUrl ? <div className="relative mx-auto aspect-[3/1] w-full max-w-lg rounded-md border border-line bg-white p-4"><Image src={logoUrl} alt="ロゴプレビュー" fill sizes="(max-width: 672px) 100vw, 672px" className="object-contain" /></div> : null}
+            {logoUrl ? <button type="button" onClick={deleteLogo} className="min-h-12 w-full rounded-md border border-accent px-4 text-sm font-semibold text-accent">ロゴを削除</button> : null}
+            <div className="fixed inset-x-0 bottom-0 z-30 mx-auto max-w-2xl bg-paper/95 p-3 backdrop-blur safe-bottom">
+              <button className="min-h-12 w-full rounded-md bg-ink px-4 text-sm font-semibold text-white">保存</button>
+            </div>
           </form>
         </section>
       ) : null}
@@ -942,10 +1087,10 @@ function Notice({
 }) {
   return (
     <div
-      className={`flex gap-2 rounded-md border p-3 text-sm ${
+      className={`fixed inset-x-4 top-4 z-[70] mx-auto flex max-w-lg gap-2 rounded-md border p-3 text-sm ${
         tone === "error"
           ? "border-accent/30 bg-accent/10 text-accent"
-          : "border-moss/30 bg-moss/10 text-moss"
+          : "notice-slide-in border-moss bg-moss text-white shadow-soft"
       }`}
     >
       <AlertCircle className="h-5 w-5 shrink-0" aria-hidden="true" />
