@@ -33,7 +33,7 @@ const emptyWorkForm: WorkFormInput = {
   display_order: 0,
 };
 
-export type AdminPage = "register" | "works" | "categories";
+export type AdminPage = "register" | "works" | "categories" | "logo";
 type DeleteTarget = {
   kind: "work" | "category";
   id: string;
@@ -205,6 +205,7 @@ function AuthenticatedAdmin({ page }: { page: AdminPage }) {
           <AdminNavLink href="/admin/works" active={page === "works"} label="作品一覧" onSelect={() => setIsMenuOpen(false)} />
           <AdminNavLink href="/admin/register" active={page === "register"} label="作品を登録" onSelect={() => setIsMenuOpen(false)} />
           <AdminNavLink href="/admin/categories" active={page === "categories"} label="カテゴリ追加" onSelect={() => setIsMenuOpen(false)} />
+          <AdminNavLink href="/admin/logo" active={page === "logo"} label="ロゴ設定" onSelect={() => setIsMenuOpen(false)} />
         </nav>
         <div className="mt-auto border-t border-line p-3">
           <button
@@ -251,6 +252,8 @@ function AdminConsole({ page }: { page: AdminPage }) {
   const [workListType, setWorkListType] = useState<WorkType>("image");
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
   const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
+  const [logoUrl, setLogoUrl] = useState("");
+  const [logoFileName, setLogoFileName] = useState<string | null>(null);
 
   const visibleWorks = works.filter((work) => work.type === workListType);
 
@@ -338,6 +341,42 @@ function AdminConsole({ page }: { page: AdminPage }) {
     setWorkForm((current) => ({ ...current, image_url: data.publicUrl }));
     setStatus("画像をアップロードしました。");
     setIsUploading(false);
+  }
+
+  async function uploadLogo(file: File) {
+    setLogoFileName(file.name);
+    setError(null);
+    if (!file.type.startsWith("image/")) {
+      setError("画像ファイルを選択してください。");
+      return;
+    }
+    if (file.size > 4 * 1024 * 1024) {
+      setError("ロゴ画像は4MB以下にしてください。");
+      return;
+    }
+    setIsUploading(true);
+    const extension = file.name.split(".").pop() ?? "png";
+    const path = `logo/${crypto.randomUUID()}.${extension}`;
+    const { error: uploadError } = await supabase.storage.from("portfolio").upload(path, file, { cacheControl: "31536000", upsert: false });
+    if (uploadError) {
+      setError(uploadError.message);
+      setIsUploading(false);
+      return;
+    }
+    setLogoUrl(supabase.storage.from("portfolio").getPublicUrl(path).data.publicUrl);
+    setStatus("ロゴ画像をアップロードしました。保存してください。");
+    setIsUploading(false);
+  }
+
+  async function saveLogo(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!logoUrl) {
+      setError("ロゴ画像を選択してください。");
+      return;
+    }
+    const { error: saveError } = await supabase.from("site_settings").upsert({ key: "logo_url", value: logoUrl, updated_at: new Date().toISOString() });
+    if (saveError) setError(saveError.message);
+    else setStatus("ロゴを保存しました。ユーザー画面に反映されます。");
   }
 
   async function saveWork(event: React.FormEvent<HTMLFormElement>) {
@@ -647,6 +686,21 @@ function AdminConsole({ page }: { page: AdminPage }) {
           </div>
         </form>
       </section>
+      ) : null}
+
+      {page === "logo" ? (
+        <section className="space-y-4">
+          <SectionTitle title="ロゴ設定" />
+          <form onSubmit={saveLogo} className="space-y-4">
+            <label className="flex min-h-14 cursor-pointer items-center justify-center rounded-md border border-ink bg-white px-5 text-sm font-medium text-ink">
+              ロゴ画像を選択
+              <input type="file" accept="image/*" onChange={(event) => { const file = event.currentTarget.files?.[0]; if (file) uploadLogo(file); }} className="sr-only" />
+            </label>
+            <p className="text-center text-sm text-muted">{logoFileName ?? "ファイルが選択されていません"}</p>
+            {logoUrl ? <div className="flex justify-center rounded-md border border-line bg-white p-6"><Image src={logoUrl} alt="ロゴプレビュー" width={160} height={160} className="h-32 w-32 object-contain" /></div> : null}
+            <button className="min-h-12 w-full rounded-md bg-ink px-4 text-sm font-semibold text-white">保存</button>
+          </form>
+        </section>
       ) : null}
 
       {page === "works" ? (

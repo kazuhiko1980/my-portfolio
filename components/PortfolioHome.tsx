@@ -9,7 +9,7 @@ import {
   X,
 } from "lucide-react";
 import Link from "next/link";
-import { fetchCategories, fetchWorks } from "@/lib/data";
+import { fetchCategories, fetchSiteLogo, fetchWorks } from "@/lib/data";
 import type { Category, WorkType, WorkWithCategory } from "@/lib/types";
 import { WorkCard } from "@/components/WorkCard";
 
@@ -47,6 +47,7 @@ export function PortfolioHome({ type }: PortfolioHomeProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const currentPage = pageMeta[type];
 
   useEffect(() => {
@@ -55,14 +56,16 @@ export function PortfolioHome({ type }: PortfolioHomeProps) {
     async function load() {
       try {
         setIsLoading(true);
-        const [nextCategories, nextWorks] = await Promise.all([
+        const [nextCategories, nextWorks, nextLogo] = await Promise.all([
           fetchCategories(),
           fetchWorks(),
+          fetchSiteLogo(),
         ]);
 
         if (mounted) {
           setCategories(nextCategories);
           setWorks(nextWorks);
+          setLogoUrl(nextLogo);
           setError(null);
         }
       } catch (caught) {
@@ -114,7 +117,7 @@ export function PortfolioHome({ type }: PortfolioHomeProps) {
       <header className="sticky top-0 z-20 border-b border-line/80 bg-paper/95 px-4 pb-3 pt-4 backdrop-blur">
         <div className="mb-4 flex items-center justify-between gap-4">
           <Image
-            src="/portfolio-logo.png"
+            src={logoUrl ?? "/portfolio-logo.png"}
             alt="Portfolio logo"
             width={48}
             height={48}

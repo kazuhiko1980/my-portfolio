@@ -35,3 +35,9 @@ export type WorkFormInput = {
   category_id: string | null;
   display_order: number;
 };
+
+export type SiteSetting = {
+  key: string;
+  value: string;
+  updated_at: string;
+};

@@ -1,6 +1,18 @@
 import { createSupabaseBrowserClient, hasSupabaseEnv } from "@/lib/supabase";
 import type { Category, WorkWithCategory } from "@/lib/types";
 
+export async function fetchSiteLogo(): Promise<string | null> {
+  if (!hasSupabaseEnv()) return null;
+  const supabase = createSupabaseBrowserClient();
+  const { data, error } = await supabase
+    .from("site_settings")
+    .select("value")
+    .eq("key", "logo_url")
+    .maybeSingle();
+  if (error) return null;
+  return data?.value ?? null;
+}
+
 export async function fetchCategories(): Promise<Category[]> {
   if (!hasSupabaseEnv()) {
     return [];
