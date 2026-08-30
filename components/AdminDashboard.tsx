@@ -7,6 +7,8 @@ import type { User } from "@supabase/supabase-js";
 import {
   AlertCircle,
   ArrowLeft,
+  ArrowDown,
+  ArrowUp,
   ArrowUpDown,
   Edit3,
   Eye,
@@ -576,6 +578,13 @@ function AdminConsole({ page }: { page: AdminPage }) {
     setStatus("作品の並び順を保存しました。");
   }
 
+  async function moveWork(workId: string, direction: -1 | 1) {
+    const index = visibleWorks.findIndex((work) => work.id === workId);
+    const target = visibleWorks[index + direction];
+    if (!target) return;
+    await reorderWorks(workId, target.id);
+  }
+
   async function saveCategory(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
@@ -944,6 +953,16 @@ function AdminConsole({ page }: { page: AdminPage }) {
                     {work.type} / {work.category?.name ?? "未分類"}
                   </p>
                   <div className="mt-3 flex gap-2">
+                    {isReorderMode ? (
+                      <div className="flex gap-1">
+                        <button type="button" onClick={() => moveWork(work.id, -1)} disabled={visibleWorks[0]?.id === work.id} className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-line disabled:opacity-30" aria-label="上へ移動">
+                          <ArrowUp className="h-4 w-4" aria-hidden="true" />
+                        </button>
+                        <button type="button" onClick={() => moveWork(work.id, 1)} disabled={visibleWorks[visibleWorks.length - 1]?.id === work.id} className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-line disabled:opacity-30" aria-label="下へ移動">
+                          <ArrowDown className="h-4 w-4" aria-hidden="true" />
+                        </button>
+                      </div>
+                    ) : null}
                     <button
                       type="button"
                       onClick={() => editWork(work)}
