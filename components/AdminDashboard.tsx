@@ -932,7 +932,7 @@ function AdminConsole({ page }: { page: AdminPage }) {
           <div className="flex items-center gap-2">
             {isReorderMode ? <button type="button" onClick={() => { if (reorderSnapshot) setWorks(reorderSnapshot); setIsReorderMode(false); setReorderSnapshot(null); }} className="min-h-10 rounded-md border border-line bg-white px-3 text-xs font-medium">キャンセル</button> : null}
             <button type="button" onClick={() => { if (isReorderMode) { saveReorderedWorks(); setIsReorderMode(false); setReorderSnapshot(null); } else { setReorderSnapshot([...works]); setIsReorderMode(true); } }} className={`inline-flex min-h-10 items-center gap-2 rounded-md border px-3 text-xs font-medium ${isReorderMode ? "border-ink bg-ink text-white" : "border-line bg-white text-ink"}`} aria-pressed={isReorderMode}>
-              <ArrowUpDown className="h-4 w-4" aria-hidden="true" />
+              {!isReorderMode ? <ArrowUpDown className="h-4 w-4" aria-hidden="true" /> : null}
               {isReorderMode ? "完了" : "並び替え"}
             </button>
           </div>
@@ -1000,8 +1000,8 @@ function AdminConsole({ page }: { page: AdminPage }) {
                   <p className="mt-1 text-xs text-muted">
                     {work.type} / {work.category?.name ?? "未分類"}
                   </p>
-                  <div className="mt-3 flex gap-2">
-                    {isReorderMode ? (
+                  {isReorderMode ? (
+                    <div className="mt-3 flex gap-2">
                       <div className="flex gap-1">
                         <button type="button" onClick={() => moveWork(work.id, -1)} disabled={visibleWorks[0]?.id === work.id} className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-line disabled:opacity-30" aria-label="上へ移動">
                           <ArrowUp className="h-4 w-4" aria-hidden="true" />
@@ -1010,29 +1010,31 @@ function AdminConsole({ page }: { page: AdminPage }) {
                           <ArrowDown className="h-4 w-4" aria-hidden="true" />
                         </button>
                       </div>
-                    ) : null}
-                    {!isReorderMode ? (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() => editWork(work)}
-                          className="inline-flex min-h-9 items-center gap-1 rounded-md border border-line px-3 text-xs font-medium"
-                        >
-                          <Edit3 className="h-3.5 w-3.5" aria-hidden="true" />
-                          編集
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => deleteWork(work)}
-                          className="inline-flex min-h-9 items-center gap-1 rounded-md border border-line px-3 text-xs font-medium text-accent"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
-                          削除
-                        </button>
-                      </>
-                    ) : null}
-                  </div>
+                    </div>
+                  ) : null}
                 </div>
+                {!isReorderMode ? (
+                  <div className="flex shrink-0 gap-1">
+                    <button
+                      type="button"
+                      onClick={() => editWork(work)}
+                      className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-line"
+                      aria-label="編集"
+                      title="編集"
+                    >
+                      <Edit3 className="h-3.5 w-3.5" aria-hidden="true" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => deleteWork(work)}
+                      className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-line text-accent"
+                      aria-label="削除"
+                      title="削除"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                    </button>
+                  </div>
+                ) : null}
               </div>
             ))}
           </div>
